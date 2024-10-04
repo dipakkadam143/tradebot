@@ -1,54 +1,75 @@
 const axios = require('axios');
 
 let balance = 1000;  // Initial USD balance
-let stockOwned = 0;  // Number of stocks owned
+let stockOwned = {
+  AAPL: 0,
+  TSLA: 0,
+  AMZN: 0,
+  GOOGL: 0,
+  MSFT: 0
+};
+
 const buyPriceThreshold = 0.98;  // 2% drop
 const sellPriceThreshold = 1.03; // 3% rise
-let lastPrice = 100;  // Initial stock price
+let lastPrices = {
+  AAPL: 100,
+  TSLA: 200,
+  AMZN: 150,
+  GOOGL: 250,
+  MSFT: 300
+};
+
 const trades = [];
 
 // Function to execute trades based on stock price
 async function tradeBot() {
   try {
+    const stockSymbols = ['AAPL', 'TSLA', 'AMZN', 'GOOGL', 'MSFT'];
+    
     setInterval(async () => {
-      const response = await axios.get('http://localhost:3000/api/stock');
-      const currentPrice = parseFloat(response.data.price);
+      for (let symbol of stockSymbols) {
+        const response = await axios.get(`http://localhost:3000/api/stock/${symbol}`);
+        const currentPrice = parseFloat(response.data.price);
 
-      // Buy if price drops by 2%
-      if (currentPrice / lastPrice < buyPriceThreshold && balance >= currentPrice) {
-        stockOwned += 1;
-        balance -= currentPrice;
-        logTrade('BUY', currentPrice);
-        console.log(`Bought 1 stock at $${currentPrice}, balance: $${balance}`);
-      }
-      // Sell if price rises by 3%
-      else if (currentPrice / lastPrice > sellPriceThreshold && stockOwned > 0) {
-        stockOwned -= 1;
-        balance += currentPrice;
-        logTrade('SELL', currentPrice);
-        console.log(`Sold 1 stock at $${currentPrice}, balance: $${balance}`);
-      }
+        // Buy if price drops by 2%
+        if (currentPrice / lastPrices[symbol] < buyPriceThreshold && balance >= currentPrice) {
+          stockOwned[symbol] += 1;
+          balance -= currentPrice;
+          logTrade('BUY', symbol, currentPrice);
+          console.log(`Bought 1 share of ${symbol} at $${currentPrice}, balance: $${balance}`);
+        }
+        // Sell if price rises by 3%
+        else if (currentPrice / lastPrices[symbol] > sellPriceThreshold && stockOwned[symbol] > 0) {
+          stockOwned[symbol] -= 1;
+          balance += currentPrice;
+          logTrade('SELL', symbol, currentPrice);
+          console.log(`Sold 1 share of ${symbol} at $${currentPrice}, balance: $${balance}`);
+        }
 
-      lastPrice = currentPrice;  // Update last price
-    }, 2000);  // Check every 2 seconds
+        lastPrices[symbol] = currentPrice;  // Update last price
+      }
+    }, 2000);  // Check every 2 seconds for each stock
   } catch (error) {
     console.error('Error in trade bot:', error);
   }
 }
 
 // Log trade for reporting
-function logTrade(action, price) {
-  trades.push({ action, price, date: new Date() });
+function logTrade(action, symbol, price) {
+  trades.push({ action, symbol, price, date: new Date() });
 }
 
 // Get report of all trades and profit/loss
 function getReport() {
-  const totalStockValue = stockOwned * lastPrice;
+  let totalStockValue = 0;
+  for (let symbol in stockOwned) {
+    totalStockValue += stockOwned[symbol] * lastPrices[symbol];
+  }
   const netWorth = balance + totalStockValue;
   return {
     balance,
     stockOwned,
-    lastPrice,
+    lastPrices,
     totalStockValue,
     netWorth,
     trades
